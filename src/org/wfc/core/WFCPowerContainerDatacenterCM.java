@@ -261,12 +261,9 @@ public class WFCPowerContainerDatacenterCM extends WFCPowerContainerDatacenter {
                 Log.printLine(String.format("%s VM ID #%d is created on Host #%d", CloudSim.clock(), containerVm.getId(), host.getId()));
                 incrementNewlyCreatedVmsCount();
                 getContainerVmList().add(containerVm);
-
-
                 if (containerVm.isBeingInstantiated()) {
                     containerVm.setBeingInstantiated(false);
                 }
-
                 containerVm.updateVmProcessing(CloudSim.clock(), getVmAllocationPolicy().getHost(containerVm).getContainerVmScheduler()
                         .getAllocatedMipsForContainerVm(containerVm));
             }

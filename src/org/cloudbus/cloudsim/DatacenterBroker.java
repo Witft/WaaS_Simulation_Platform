@@ -8,6 +8,7 @@
 
 package org.cloudbus.cloudsim;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -205,7 +206,7 @@ public class DatacenterBroker extends SimEntity {
 		setDatacenterIdsList(CloudSim.getCloudResourceList());
 		setDatacenterCharacteristicsList(new HashMap<Integer, DatacenterCharacteristics>());
 
-		Log.printConcatLine(CloudSim.clock(), ": ", getName(), ": Cloud Resource List received with ",
+		Log.printConcatLine(new DecimalFormat("#.00").format(CloudSim.clock()), ": ", getName(), ": Cloud Resource List received with ",
 				getDatacenterIdsList().size(), " resource(s)");
 
 		for (Integer datacenterId : getDatacenterIdsList()) {
@@ -229,11 +230,11 @@ public class DatacenterBroker extends SimEntity {
 		if (result == CloudSimTags.TRUE) {
 			getVmsToDatacentersMap().put(vmId, datacenterId);
 			getVmsCreatedList().add(VmList.getById(getVmList(), vmId));
-			Log.printConcatLine(CloudSim.clock(), ": ", getName(), ": VM #", vmId,
+			Log.printConcatLine(new DecimalFormat("#.00").format(CloudSim.clock()), ": ", getName(), ": VM #", vmId,
 					" has been created in Datacenter #", datacenterId, ", Host #",
 					VmList.getById(getVmsCreatedList(), vmId).getHost().getId());
 		} else {
-			Log.printConcatLine(CloudSim.clock(), ": ", getName(), ": Creation of VM #", vmId,
+			Log.printConcatLine(new DecimalFormat("#.00").format(CloudSim.clock()), ": ", getName(), ": Creation of VM #", vmId,
 					" failed in Datacenter #", datacenterId);
 		}
 
@@ -257,7 +258,7 @@ public class DatacenterBroker extends SimEntity {
 				if (getVmsCreatedList().size() > 0) { // if some vm were created
 					submitCloudlets();
 				} else { // no vms created. abort
-					Log.printLine(CloudSim.clock() + ": " + getName()
+					Log.printLine(new DecimalFormat("#.00").format(CloudSim.clock()) + ": " + getName()
 							+ ": none of the required VMs could be created. Aborting");
 					finishExecution();
 				}
@@ -275,11 +276,11 @@ public class DatacenterBroker extends SimEntity {
 	protected void processCloudletReturn(SimEvent ev) {
 		Cloudlet cloudlet = (Cloudlet) ev.getData();
 		getCloudletReceivedList().add(cloudlet);
-		Log.printConcatLine(CloudSim.clock(), ": ", getName(), ": Cloudlet ", cloudlet.getCloudletId(),
+		Log.printConcatLine(new DecimalFormat("#.00").format(CloudSim.clock()), ": ", getName(), ": Cloudlet ", cloudlet.getCloudletId(),
 				" received");
 		cloudletsSubmitted--;
 		if (getCloudletList().size() == 0 && cloudletsSubmitted == 0) { // all cloudlets executed
-			Log.printConcatLine(CloudSim.clock(), ": ", getName(), ": All Cloudlets executed. Finishing...");
+			Log.printConcatLine(new DecimalFormat("#.00").format(CloudSim.clock()), ": ", getName(), ": All Cloudlets executed. Finishing...");
 			clearDatacenters();
 			finishExecution();
 		} else { // some cloudlets haven't finished yet
@@ -328,7 +329,7 @@ public class DatacenterBroker extends SimEntity {
 		String datacenterName = CloudSim.getEntityName(datacenterId);
 		for (Vm vm : getVmList()) {
 			if (!getVmsToDatacentersMap().containsKey(vm.getId())) {
-				Log.printLine(CloudSim.clock() + ": " + getName() + ": Trying to Create VM #" + vm.getId()
+				Log.printLine(new DecimalFormat("#.00").format(CloudSim.clock()) + ": " + getName() + ": Trying to Create VM #" + vm.getId()
 						+ " in " + datacenterName);
 				sendNow(datacenterId, CloudSimTags.VM_CREATE_ACK, vm);
 				requestedVms++;
@@ -360,7 +361,7 @@ public class DatacenterBroker extends SimEntity {
 				vm = VmList.getById(getVmsCreatedList(), cloudlet.getVmId());
 				if (vm == null) { // vm was not created
 					if(!Log.isDisabled()) {				    
-					    Log.printConcatLine(CloudSim.clock(), ": ", getName(), ": Postponing execution of cloudlet ",
+					    Log.printConcatLine(new DecimalFormat("#.00").format(CloudSim.clock()), ": ", getName(), ": Postponing execution of cloudlet ",
 							cloudlet.getCloudletId(), ": bount VM not available");
 					}
 					continue;
@@ -368,7 +369,7 @@ public class DatacenterBroker extends SimEntity {
 			}
 
 			if (!Log.isDisabled()) {
-			    Log.printConcatLine(CloudSim.clock(), ": ", getName(), ": Sending cloudlet ",
+			    Log.printConcatLine(new DecimalFormat("#.00").format(CloudSim.clock()), ": ", getName(), ": Sending cloudlet ",
 					cloudlet.getCloudletId(), " to VM #", vm.getId());
 			}
 			
@@ -392,7 +393,7 @@ public class DatacenterBroker extends SimEntity {
 	 */
 	protected void clearDatacenters() {
 		for (Vm vm : getVmsCreatedList()) {
-			Log.printConcatLine(CloudSim.clock(), ": " + getName(), ": Destroying VM #", vm.getId());
+			Log.printConcatLine(new DecimalFormat("#.00").format(CloudSim.clock()), ": " + getName(), ": Destroying VM #", vm.getId());
 			sendNow(getVmsToDatacentersMap().get(vm.getId()), CloudSimTags.VM_DESTROY, vm);
 		}
 

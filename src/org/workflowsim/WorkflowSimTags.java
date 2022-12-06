@@ -44,8 +44,19 @@ public class WorkflowSimTags {
     public static final int JOB_SUBMIT = BASE + 1;
     public static final int CLOUDLET_UPDATE = BASE + 5;
     public static final int CLOUDLET_CHECK = BASE + 6;
+
     
     public static final int CONTAINER_CLOULDLET_MAP = BASE + 7;
+
+    /**
+     * 自己加一个标签，用来处理新工作流到达
+     */
+    public static final int NEW_WORKFLOW_ARRIVE = BASE + 8;
+
+    /**
+     * 用来复制任务
+     */
+    public static final int CLOUDLET_REPLICATE = BASE + 9;
 
     /**
      * Private Constructor

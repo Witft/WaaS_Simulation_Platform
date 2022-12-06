@@ -35,6 +35,7 @@ public class MinMinSchedulingAlgorithm extends BaseSchedulingAlgorithm {
     }
     private final List<Boolean> hasChecked = new ArrayList<>();
 
+    //为什么这个方法中为任务分配VM没有考虑VM的性能是否足够？
     @Override
     public void run() {
 
@@ -43,9 +44,11 @@ public class MinMinSchedulingAlgorithm extends BaseSchedulingAlgorithm {
         for (int t = 0; t < size; t++) {
             hasChecked.add(false);
         }
+        //每运行一次，确定一个任务的VM
         for (int i = 0; i < size; i++) {
             int minIndex = 0;
             Cloudlet minCloudlet = null;
+            //找到第一个还没有分配VM的任务
             for (int j = 0; j < size; j++) {
                 Cloudlet cloudlet = (Cloudlet) getCloudletList().get(j);
                 if (!hasChecked.get(j)) {
@@ -54,11 +57,12 @@ public class MinMinSchedulingAlgorithm extends BaseSchedulingAlgorithm {
                     break;
                 }
             }
+            //如果没找到没有被分配的任务，就中断循环
             if (minCloudlet == null) {
                 break;
             }
 
-
+            //找长度最小的任务
             for (int j = 0; j < size; j++) {
                 Cloudlet cloudlet = (Cloudlet) getCloudletList().get(j);
                 if (hasChecked.get(j)) {
@@ -74,6 +78,7 @@ public class MinMinSchedulingAlgorithm extends BaseSchedulingAlgorithm {
 
             int vmSize = getVmList().size();
             ContainerVm firstIdleVm = null;//(CondorVM)getVmList().get(0);
+            //找到第一个空闲的VM
             for (int j = 0; j < vmSize; j++) {
                 ContainerVm vm = (ContainerVm) getVmList().get(j);
                 if (vm.getState() == WorkflowSimTags.VM_STATUS_IDLE) {
@@ -81,9 +86,11 @@ public class MinMinSchedulingAlgorithm extends BaseSchedulingAlgorithm {
                     break;
                 }
             }
+            //如果没找到空闲的VM，本次分配任务的过程结束
             if (firstIdleVm == null) {
                 break;
             }
+            //找到一个空闲并且需求的MIPS最大的VM
             for (int j = 0; j < vmSize; j++) {
                 ContainerVm vm = (ContainerVm) getVmList().get(j);
                 if ((vm.getState() == WorkflowSimTags.VM_STATUS_IDLE)
@@ -92,13 +99,10 @@ public class MinMinSchedulingAlgorithm extends BaseSchedulingAlgorithm {
                 }
             }
             firstIdleVm.setState(WorkflowSimTags.VM_STATUS_BUSY);
+            //为上面找到的最短的任务分配虚拟机
             minCloudlet.setVmId(firstIdleVm.getId());
-           
 
         // minCloudlet.setContainerId(firstIdleVm.getId());
-
-            
-       
             
             getScheduledList().add(minCloudlet);
         }

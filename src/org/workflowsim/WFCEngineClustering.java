@@ -18,10 +18,12 @@ package org.workflowsim;
 import java.util.ArrayList;
 import java.util.List;
 import org.cloudbus.cloudsim.Log;
+import org.cloudbus.cloudsim.container.utils.IDs;
 import org.cloudbus.cloudsim.core.CloudSimTags;
 import org.cloudbus.cloudsim.core.SimEntity;
 import org.cloudbus.cloudsim.core.SimEvent;
 import org.wfc.core.WFCConstants;
+import org.wfc.core.WFCEngine;
 import org.workflowsim.clustering.BasicClustering;
 import org.workflowsim.clustering.BlockClustering;
 import org.workflowsim.clustering.HorizontalClustering;
@@ -179,6 +181,7 @@ public final class WFCEngineClustering extends SimEntity {
                 break;
         }
         engine.setTaskList(getTaskList());
+        //WFCExample3中因为设定了params.getClusteringMethod()的值为NONE，所以engine的类型是BasicClustering
         engine.run();
         setJobList(engine.getJobList());
     }
@@ -198,7 +201,9 @@ public final class WFCEngineClustering extends SimEntity {
          * of this job to be getJobList().size() is so that the job id is the
          * next available id
          */
-        Job job = new Job(getJobList().size()+1, WFCConstants.JOB_LENGTH);
+//        Job job = new Job(getJobList().size()+1, WFCConstants.JOB_LENGTH);
+        //因为用了IDs进行id分配，所以改为下面这行
+        Job job = new Job(IDs.pollId(Job.class), WFCConstants.STAGE_IN_JOB_LENGTH);
 
         /**
          * This is a very simple implementation of stage-in job, in which we Add
@@ -216,9 +221,11 @@ public final class WFCEngineClustering extends SimEntity {
              */
             if (file.isRealInputFile(list)) {
                 WFCReplicaCatalog.addFileToStorage(file.getName(), Parameters.SOURCE);
+//                Log.printLine("文件" + file.getName() + "添加到数据源");
                 fileList.add(file);
             }
         }
+        //fileList中的文件都是不能通过执行任务来生成的文件
         job.setFileList(fileList);
         job.setClassType(ClassType.STAGE_IN.value);
 
@@ -227,6 +234,8 @@ public final class WFCEngineClustering extends SimEntity {
          */
         job.setDepth(0);
         job.setPriority(0);
+        //自己添加设定Workflow Id的
+        job.setWorkflowId(0);
 
         /**
          * A very simple strategy if you have multiple schedulers and

@@ -1,19 +1,21 @@
 package org.cloudbus.cloudsim.container.core;
 
+import org.cloudbus.cloudsim.*;
 import org.cloudbus.cloudsim.container.containerProvisioners.ContainerBwProvisioner;
 import org.cloudbus.cloudsim.container.containerProvisioners.ContainerPe;
 import org.cloudbus.cloudsim.container.containerProvisioners.ContainerRamProvisioner;
 import org.cloudbus.cloudsim.container.lists.ContainerPeList;
 import org.cloudbus.cloudsim.container.schedulers.ContainerScheduler;
-import org.cloudbus.cloudsim.Log;
-import org.cloudbus.cloudsim.VmStateHistoryEntry;
 import org.cloudbus.cloudsim.core.CloudSim;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import org.cloudbus.cloudsim.Vm;
+
+import org.wfc.core.WFCConstants;
 import org.wfc.core.WFCDatacenter;
+import org.workflowsim.ContainerVmType;
+import org.workflowsim.Task;
 import org.workflowsim.WorkflowSimTags;
 
 /**
@@ -31,7 +33,7 @@ import org.workflowsim.WorkflowSimTags;
 public class ContainerVm  {
 
     // Added By Arman From CondorVm
-    private int state;       
+    private int state;
 
     /**
      * the cost of using memory in this resource
@@ -194,6 +196,25 @@ public class ContainerVm  {
     @SuppressWarnings("unused")
 	private WFCDatacenter datacenter;
 
+    /**
+     * 添加一个关于VM类型的参数
+     */
+    private ContainerVmType type;
+
+    /**
+     * 添加创建和销毁时间
+     */
+    private double creatingTime;
+    private double destroyTime;
+
+    /**
+     * 假如正在创建过程中，该VM是已经存在的，虚拟的“空闲时间”
+     */
+    private double dummyIdleTime;
+
+    private int dummyWorkflowId;
+
+
 
     /**
      * Creates a new VMCharacteristics object.
@@ -223,6 +244,9 @@ public class ContainerVm  {
             ContainerBwProvisioner containerBwProvisioner,
             List<? extends ContainerPe> peList
     ) {
+        // 初始化自己加的属性
+        setDummyIdleTime(0);
+        setDummyWorkflowId(0);
         
         //*Added By arman
         setState(WorkflowSimTags.VM_STATUS_IDLE);
@@ -254,7 +278,126 @@ public class ContainerVm  {
 
     }
 
+    /**
+     * 重载一个构造函数，加上ContainerVmType的初始化
+     * @param type
+     * @param id
+     * @param userId
+     * @param mips
+     * @param ram
+     * @param bw
+     * @param size
+     * @param vmm
+     * @param containerScheduler
+     * @param containerRamProvisioner
+     * @param containerBwProvisioner
+     * @param peList
+     */
+    public ContainerVm(
+            ContainerVmType type,
+            int id,
+            int userId,
+            double mips,
+            float ram,
+            long bw,
+            long size,
+            String vmm,
+            ContainerScheduler containerScheduler,
+            ContainerRamProvisioner containerRamProvisioner,
+            ContainerBwProvisioner containerBwProvisioner,
+            List<? extends ContainerPe> peList
+    ) {
+        // 初始化自己加的属性
+        setDummyIdleTime(0);
+        setDummyWorkflowId(0);
+        this.type = type;
 
+
+        //*Added By arman
+        setState(WorkflowSimTags.VM_STATUS_IDLE);
+
+        setId(id);
+        setUserId(userId);
+        setUid(getUid(userId, id));
+        setMips(mips);
+        setPeList(peList);
+        setNumberOfPes(getPeList().size());
+        setRam(ram);
+        setBw(bw);
+        setSize(size);
+        setVmm(vmm);
+        setContainerScheduler(containerScheduler);
+
+        setInMigration(false);
+        setInWaiting(false);
+        setBeingInstantiated(true);
+
+        setCurrentAllocatedBw(0);
+        setCurrentAllocatedMips(null);
+        setCurrentAllocatedRam(0);
+        setCurrentAllocatedSize(0);
+
+        setContainerRamProvisioner(containerRamProvisioner);
+        setContainerBwProvisioner(containerBwProvisioner);
+
+
+    }
+
+//    /**
+//     * 估计某个任务的处理时间
+//     */
+//    public double estimateProcessingTime(Task task) {
+//
+//        double finishTime = 0.0;
+//        for (ResCloudlet rcl : getCloudletExecList()) {
+//            finishTime = getEstimatedFinishTime(rcl, CloudSim.clock()) - CloudSim.clock();
+//        }
+//        for (ResCloudlet rcl : getCloudletWaitingList()){
+//            finishTime += rcl.getRemainingCloudletLength() / getTotalCurrentAllocatedMipsForCloudlet(rcl, CloudSim.clock());
+//        }
+//        return finishTime;
+//    }
+
+    public void setDummyWorkflowId(int dummyWorkflowId) {
+        this.dummyWorkflowId = dummyWorkflowId;
+    }
+
+    public int getDummyWorkflowId() {
+        return dummyWorkflowId;
+    }
+
+    public void setDummyIdleTime(double dummyIdleTime) {
+        this.dummyIdleTime = dummyIdleTime;
+    }
+
+    public double getDummyIdleTime() {
+        return dummyIdleTime;
+    }
+
+    /**
+     * 获取在该VM上运行某一任务的成本
+     * @param cloudlet
+     * @return
+     */
+    public double getCostOfCloudlet(Cloudlet cloudlet){
+        double pt = cloudlet.getTransferTime() + cloudlet.getCloudletLength() / getType().getMips();
+        if(getContainerList().size() == 0 || getContainerList().get(0).getWorkflowId() != cloudlet.getWorkflowId()){
+            pt += WFCConstants.CONTAINER_INITIAL_TIME;
+        }
+        return pt / WFCConstants.RENT_INTERVAL * getType().getCostPerInterval();
+    }
+
+    public ContainerVmType getType() {
+        return type;
+    }
+
+    /**
+     * 计算总的花费
+     */
+    public double getTotalCost(){
+        //-0.001是因为VM本该每个租用周期都检查，但是每次检查之间的时间间隔不一定是严格的租用周期，有可能间隔长一点点，防止因此多计费一个周期
+        return Math.ceil((destroyTime - creatingTime - 0.001) / type.getInterval()) * type.getCostPerInterval();
+    }
 
     /**
      * Updates the processing of containers running on this VM.
@@ -871,15 +1014,28 @@ public class ContainerVm  {
 
     /**
      * Checks if is suitable for container.
-     *
+     * 这个函数允许一个VM上创建多个container，已经注释掉，改为下一个同名的函数
      * @param container the container
      * @return true, if is suitable for container
+     */
+//    public boolean isSuitableForContainer(Container container) {
+//
+//        return (getContainerScheduler().getPeCapacity() >= container.getCurrentRequestedMaxMips()&& getContainerScheduler().getAvailableMips() >= container.getWorkloadTotalMips()
+//                && getContainerRamProvisioner().isSuitableForContainer(container, container.getCurrentRequestedRam()) && getContainerBwProvisioner()
+//                .isSuitableForContainer(container, container.getCurrentRequestedBw()));
+//    }
+
+    /**
+     * 为了让每个VM上最多只创建一个container，这里的判断“适合”的标准新增一个，即VM上不能已经有container,
+     * getContainerList().size() <= 0
+     * @param container
+     * @return
      */
     public boolean isSuitableForContainer(Container container) {
 
         return (getContainerScheduler().getPeCapacity() >= container.getCurrentRequestedMaxMips()&& getContainerScheduler().getAvailableMips() >= container.getWorkloadTotalMips()
                 && getContainerRamProvisioner().isSuitableForContainer(container, container.getCurrentRequestedRam()) && getContainerBwProvisioner()
-                .isSuitableForContainer(container, container.getCurrentRequestedBw()));
+                .isSuitableForContainer(container, container.getCurrentRequestedBw()) && getContainerList().size() <= 0);
     }
 
        /**
@@ -895,8 +1051,9 @@ public class ContainerVm  {
             containerDeallocate(container);
 //            Log.printConcatLine("The Container To remove is :   ", container.getId(), "Size before removing is ", getContainerList().size(), "  vm ID is: ", getId());
             getContainerList().remove(container);
-            Log.printLine("ContainerVm# "+getId()+" containerDestroy:......" + container.getId() + "Is deleted from the list");
-
+            if(WFCConstants.PRINT_CONTAINER_DESTROY){
+                Log.printLine(CloudSim.clock() + ":ContainerVm# "+getId()+" containerDestroy: container" + container.getId() + " is deleted from the list");
+            }
 //            Log.printConcatLine("Size after removing", getContainerList().size());
             while(getContainerList().contains(container)){
                 Log.printConcatLine("The container", container.getId(), " is still here");
@@ -1248,6 +1405,15 @@ public class ContainerVm  {
             return false;
         }
 
+//        /**
+//         * 限制VM上只能有一个container，所以加一个条件
+//         */
+//        if(getContainerList().size() > 0){
+//            Log.printConcatLine("[ContainerScheduler.ContainerCreate] Allocation of Container #", container.getId(), " to VM #", getId(),
+//                    " failed by limit that one VM has only one container");
+//            return false;
+//        }
+
         setSize(getSize() - container.getSize());
         getContainerList().add(container);
         container.setVm(this);
@@ -1329,10 +1495,18 @@ public class ContainerVm  {
     public final int getState() {
         return this.state;
     }
-    
-    
-    
-    
+
+    public void setCreatingTime(double time) {
+        creatingTime = time;
+    }
+
+    public double getCreatingTime() {
+        return creatingTime;
+    }
+
+    public void setDestroyTime(double time){
+        destroyTime = time;
+    }
 }
 
 

@@ -133,6 +133,11 @@ public class Container {
      */
     private double schedulingInterval;
 
+    /**
+     * 加一个属性，工作流ID，用于区分不同的容器能运行哪一个工作流的任务
+     */
+    private int workflowId;
+
 
     /**
      * Creates a new Container object.
@@ -180,6 +185,58 @@ public class Container {
     }
 
     /**
+     * 新加一个构造函数，可以赋值workflowId
+     */
+    public Container(
+            int workflowId,
+            int id,
+            int userId,
+            double mips,
+            int numberOfPes,
+            int ram,
+            long bw,
+            long size,
+            String containerManager,
+            ContainerCloudletScheduler containerCloudletScheduler, double schedulingInterval) {
+        //*Added By arman
+        setState(WorkflowSimTags.VM_STATUS_IDLE);
+        setWorkloadMips(mips);
+        setId(id);
+        setUserId(userId);
+        setUid(getUid(userId, id));
+        setMips(mips);
+        setNumberOfPes(numberOfPes);
+        setRam(ram);
+        setBw(bw);
+        setSize(size);
+        setContainerManager(containerManager);
+        setContainerCloudletScheduler(containerCloudletScheduler);
+        setInMigration(false);
+        setBeingInstantiated(true);
+        setCurrentAllocatedBw(0);
+        setCurrentAllocatedMips(null);
+        setCurrentAllocatedRam(0);
+        setCurrentAllocatedSize(0);
+        setSchedulingInterval(schedulingInterval);
+        setWorkflowId(workflowId);
+    }
+
+    /**
+     * 新增workflowId的set方法
+     * @param workflowId
+     */
+    public void setWorkflowId(int workflowId) {
+        this.workflowId = workflowId;
+    }
+
+    /**
+     * 新增workflowId的get方法
+     */
+    public int getWorkflowId() {
+        return workflowId;
+    }
+
+    /**
      * Updates the processing of cloudlets running on this Container.
      *
      * @param currentTime current simulation time
@@ -191,6 +248,7 @@ public class Container {
      */
     public double updateContainerProcessing(double currentTime, List<Double> mipsShare) {
         if (mipsShare != null) {
+            //返回的是下一个事项发生的时间
             return getContainerCloudletScheduler().updateContainerProcessing(currentTime, mipsShare);
         }
         return 0.0;

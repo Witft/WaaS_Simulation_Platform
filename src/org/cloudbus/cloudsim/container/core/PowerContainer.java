@@ -51,6 +51,24 @@ public class PowerContainer extends Container{
             super(id, userId, mips, pesNumber, ram, bw, size, vmm, cloudletScheduler, schedulingInterval);
         }
 
+    /**
+     * 新加一个构造函数，可以赋值workflowId
+     */
+    public PowerContainer(
+            final int workflowId,
+            final int id,
+            final int userId,
+            final double mips,
+            final int pesNumber,
+            final int ram,
+            final long bw,
+            final long size,
+            final String vmm,
+            final ContainerCloudletScheduler cloudletScheduler,
+            final double schedulingInterval) {
+        super(workflowId, id, userId, mips, pesNumber, ram, bw, size, vmm, cloudletScheduler, schedulingInterval);
+    }
+
         /**
          * Updates the processing of cloudlets running on this VM.
          *
@@ -66,6 +84,7 @@ public class PowerContainer extends Container{
         @Override
         public double updateContainerProcessing(final double currentTime, final List<Double> mipsShare) {
             double time = super.updateContainerProcessing(currentTime, mipsShare);
+            //这为什么是0.2？可能是因为最早开始处理的任务STAGE-IN，其开始时间是0.2
             if (currentTime > getPreviousTime() && (currentTime - 0.2) % getSchedulingInterval() == 0) {
                 double utilization = getTotalUtilizationOfCpu(getContainerCloudletScheduler().getPreviousTime());
                 if (CloudSim.clock() != 0 || utilization != 0) {

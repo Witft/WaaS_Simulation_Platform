@@ -66,6 +66,13 @@ public class ReclusteringEngine {
                     cJob.addParent(newJob);
                 }
             }
+            //这里缺少一些东西，补充一下，例如job的文件列表，还有其它属性
+            newJob.setClassType(job.getClassType());
+            newJob.setUserId(job.getUserId());
+            newJob.setWorkflowId(job.getWorkflowId());
+            newJob.setFileList(job.getFileList());
+            newJob.getRequiredFiles().addAll(job.getRequiredFiles());
+
             return newJob;
         } catch (Exception e) {
             e.printStackTrace();

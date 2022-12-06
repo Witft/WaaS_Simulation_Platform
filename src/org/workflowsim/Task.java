@@ -73,6 +73,27 @@ public class Task extends ContainerCloudlet  {
      */
     private double taskFinishTime;
 
+    //添加一个Task的构造函数
+    public Task(
+            final int wofkflowId,
+            final int taskId,
+            final long taskLength) {
+        /**
+         * We do not use cloudletFileSize and cloudletOutputSize here. We have
+         * added a list to task and thus we don't need a cloudletFileSize or
+         * cloudletOutputSize here The utilizationModelCpu, utilizationModelRam,
+         * and utilizationModelBw are just set to be the default mode. You can
+         * change it for your own purpose.
+         */
+        super(wofkflowId, taskId, taskLength, 1, 0, 0, new UtilizationModelFull(), new UtilizationModelFull(), new UtilizationModelFull());
+
+        this.childList = new ArrayList<>();
+        this.parentList = new ArrayList<>();
+        this.fileList = new ArrayList<>();
+        this.impact = 0.0;
+        this.taskFinishTime = -1.0;
+    }
+
     /**
      * Allocates a new Task object. The task length should be greater than or
      * equal to 1.

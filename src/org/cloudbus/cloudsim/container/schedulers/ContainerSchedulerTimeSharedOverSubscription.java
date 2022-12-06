@@ -76,8 +76,8 @@ public class ContainerSchedulerTimeSharedOverSubscription extends ContainerSched
     }
 
     /**
-     * This method recalculates distribution of MIPs among VMs considering eventual shortage of MIPS
-     * compared to the amount requested by VMs.
+     * This method recalculates distribution of MIPs among Containers considering eventual shortage of MIPS
+     * compared to the amount requested by Containers.
      */
     protected void redistributeMipsDueToOverSubscription() {
         // First, we calculate the scaling factor - the MIPS allocation for all VMs will be scaled

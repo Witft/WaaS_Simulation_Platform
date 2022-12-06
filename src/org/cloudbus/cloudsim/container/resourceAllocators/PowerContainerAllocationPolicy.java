@@ -4,6 +4,7 @@ import org.cloudbus.cloudsim.container.core.Container;
 import org.cloudbus.cloudsim.container.core.ContainerVm;
 import org.cloudbus.cloudsim.Log;
 import org.cloudbus.cloudsim.core.CloudSim;
+import org.wfc.core.WFCConstants;
 
 import java.util.HashMap;
 import java.util.List;
@@ -49,9 +50,12 @@ public abstract class PowerContainerAllocationPolicy extends ContainerAllocation
             if (containerVm.containerCreate(container)) { // if vm has been succesfully created in the host
                 getContainerTable().put(container.getUid(), containerVm);
 //                container.setVm(containerVm);
-                Log.formatLine(
-                        "%.2f: Container #" + container.getId() + " has been allocated to the VM #" + containerVm.getId(),
-                        CloudSim.clock());
+                if(WFCConstants.PRINT_CONTAINER_ALLOCATED){
+                    Log.formatLine(
+                            "%.2f: Container #" + container.getId() + " has been allocated to the VM #" + containerVm.getId(),
+                            CloudSim.clock());
+                }
+
                 return true;
             }
             Log.formatLine(

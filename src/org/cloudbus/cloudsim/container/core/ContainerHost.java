@@ -81,7 +81,6 @@ public class ContainerHost {
      */
     public ContainerHost(
             int id,
-            
             ContainerVmRamProvisioner containerVmRamProvisioner,
             ContainerVmBwProvisioner containerVmBwProvisioner,
             long storage,
@@ -202,10 +201,35 @@ public class ContainerHost {
      */
     public boolean isSuitableForContainerVm(ContainerVm vm) {
         //Log.printLine("Host: Is suitable for VM???......");
-        return (getContainerVmScheduler().getPeCapacity() >= vm.getCurrentRequestedMaxMips()
+        //getContainerVmScheduler().getPeCapacity()获取所有核里面的第一个核的mips，如果其不小于vm要求的vm中所有核心中的mips的最大值
+        if(getContainerVmScheduler().getPeCapacity() >= vm.getCurrentRequestedMaxMips()
                 && getContainerVmScheduler().getAvailableMips() >= vm.getCurrentRequestedTotalMips()
                 && getContainerVmRamProvisioner().isSuitableForContainerVm(vm, vm.getCurrentRequestedRam()) && getContainerVmBwProvisioner()
-                .isSuitableForContainerVm(vm, vm.getCurrentRequestedBw()));
+                .isSuitableForContainerVm(vm, vm.getCurrentRequestedBw())){
+            return true;
+        }else {
+            if(getContainerVmScheduler().getPeCapacity() < vm.getCurrentRequestedMaxMips()){
+                Log.printLine("单核性能不够");
+
+            }
+            if(getContainerVmScheduler().getAvailableMips() < vm.getCurrentRequestedTotalMips()){
+                Log.printLine("可用的性能不够");
+                Log.printLine(getContainerVmScheduler().getAvailableMips());
+                Log.printLine(vm.getCurrentRequestedTotalMips());
+            }
+            if(!getContainerVmRamProvisioner().isSuitableForContainerVm(vm, vm.getCurrentRequestedRam())){
+                Log.printLine("内存不够");
+            }
+            if(!getContainerVmBwProvisioner().isSuitableForContainerVm(vm, vm.getCurrentRequestedBw())){
+                Log.printLine("带宽不够");
+            }
+            return false;
+        }
+        //这里原来的内容是下面的
+//        return (getContainerVmScheduler().getPeCapacity() >= vm.getCurrentRequestedMaxMips()
+//                && getContainerVmScheduler().getAvailableMips() >= vm.getCurrentRequestedTotalMips()
+//                && getContainerVmRamProvisioner().isSuitableForContainerVm(vm, vm.getCurrentRequestedRam()) && getContainerVmBwProvisioner()
+//                .isSuitableForContainerVm(vm, vm.getCurrentRequestedBw()));
     }
 
     /**

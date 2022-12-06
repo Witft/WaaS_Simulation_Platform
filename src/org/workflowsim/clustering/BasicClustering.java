@@ -167,6 +167,7 @@ public class BasicClustering implements ClusteringInterface {
             int priority = 0;
             int depth = 0;
             /// a bug of cloudsim makes it final of input file size and output file size
+            //这里可能出问题，因为其它地方都是用IDs给任务id
             Job job = new Job(idIndex + 1, length);/*, inputFileSize, outputFileSize*/  //added by arman idIndex " + 1"
             job.setClassType(ClassType.COMPUTE.value);
             for (Task task : taskList) {
@@ -204,6 +205,11 @@ public class BasicClustering implements ClusteringInterface {
             job.setUserId(userId);
             job.setDepth(depth);
             job.setPriority(priority);
+            //添加设定Job的workflowId
+            if(taskList.size() > 0){
+                job.setWorkflowId(taskList.get(0).getWorkflowId());
+            }
+
 
             idIndex ++;
             getJobList().add(job);

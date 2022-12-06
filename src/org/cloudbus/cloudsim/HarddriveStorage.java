@@ -233,7 +233,7 @@ public class HarddriveStorage implements Storage {
 	}
 
 	@Override
-	public boolean setMaxTransferRate(int rate) {
+	public boolean setMaxTransferRate(double rate) {
 		if (rate <= 0) {
 			return false;
 		}

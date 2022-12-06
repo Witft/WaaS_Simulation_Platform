@@ -64,7 +64,7 @@ public interface Storage {
 	 * @param rate the maximum transfer rate in MB/sec
 	 * @return <tt>true</tt> if the setting succeeded, <tt>false</tt> otherwise
 	 */
-	boolean setMaxTransferRate(int rate);
+	boolean setMaxTransferRate(double rate);
 
 	/**
 	 * Checks if the storage is full or not.

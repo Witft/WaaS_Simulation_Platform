@@ -436,6 +436,9 @@ public class ResCloudlet {
 	 * @post $result >= 0
 	 */
 	public long getRemainingCloudletLength() {
+//		if(getCloudletId() == 41){
+//			Log.printLine("41号任务总长度为" + cloudlet.getCloudletTotalLength() * Consts.MILLION);
+//		}
 		long length = cloudlet.getCloudletTotalLength() * Consts.MILLION - cloudletFinishedSoFar;
 
 		// Remaining Cloudlet length can't be negative number.
@@ -484,6 +487,9 @@ public class ResCloudlet {
 	 */
 	public void updateCloudletFinishedSoFar(long miLength) {
 		cloudletFinishedSoFar += miLength;
+//		if(getCloudletId() == 41){
+//			Log.printLine("41号任务已经完成了" + cloudletFinishedSoFar);
+//		}
 	}
 
 	/**

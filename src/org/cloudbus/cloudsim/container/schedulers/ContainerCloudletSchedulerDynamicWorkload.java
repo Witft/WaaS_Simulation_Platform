@@ -5,6 +5,7 @@ package org.cloudbus.cloudsim.container.schedulers;
  */
 import org.cloudbus.cloudsim.Cloudlet;
 import org.cloudbus.cloudsim.Consts;
+import org.cloudbus.cloudsim.Log;
 import org.cloudbus.cloudsim.ResCloudlet;
 import org.cloudbus.cloudsim.core.CloudSim;
 
@@ -67,9 +68,10 @@ public class ContainerCloudletSchedulerDynamicWorkload extends ContainerCloudlet
             List<ResCloudlet> cloudletsToFinish = new ArrayList<>();
 
             for (ResCloudlet rcl : getCloudletExecList()) {
+                //计算这段时间完成了多少length，在原来的基础上加上
+
                 rcl.updateCloudletFinishedSoFar((long) (timeSpan
                         * getTotalCurrentAllocatedMipsForCloudlet(rcl, getPreviousTime()) * Consts.MILLION));
-
                 if (rcl.getRemainingCloudletLength() == 0) { // finished: remove from the list
                     cloudletsToFinish.add(rcl);
                 } else { // not finish: estimate the finish time
@@ -95,7 +97,7 @@ public class ContainerCloudletSchedulerDynamicWorkload extends ContainerCloudlet
             }
 
             cloudletsToFinish.clear();
-
+            //对于这个容器来说，下一个事项发生的时间
             return nextEvent;
         }
 
@@ -109,6 +111,7 @@ public class ContainerCloudletSchedulerDynamicWorkload extends ContainerCloudlet
          */
         @Override
         public double cloudletSubmit(Cloudlet cl) {
+            //把这个函数由返回double改成了返回void
             return cloudletSubmit(cl, 0);
         }
 
@@ -123,15 +126,19 @@ public class ContainerCloudletSchedulerDynamicWorkload extends ContainerCloudlet
          */
         @Override
         public double cloudletSubmit(Cloudlet cl, double fileTransferTime) {
+            //没有用到fileTransferTime，但是WFCDatacenter的processCloudletSubmit()中有用到
             ResCloudlet rcl = new ResCloudlet(cl);
             rcl.setCloudletStatus(Cloudlet.INEXEC);
 
             for (int i = 0; i < cl.getNumberOfPes(); i++) {
-                rcl.setMachineAndPeId(0, i);
+                rcl.setMachineAndPeId(0, i);//这是做什么？
             }
-
+            //如果允许一个容器其中有其它等待的任务，那就不能直接把任务提交到运行队列里
+            //没有完成输入数据传输的的任务也不应该进入运行队列
             getCloudletExecList().add(rcl);
+            //修改过
             return getEstimatedFinishTime(rcl, getPreviousTime());
+//            return getEstimatedFinishTime(rcl, CloudSim.clock());
         }
 
         /**
@@ -260,8 +267,17 @@ public class ContainerCloudletSchedulerDynamicWorkload extends ContainerCloudlet
          * @return the estimated finish time
          */
         public double getEstimatedFinishTime(ResCloudlet rcl, double time) {
-            return time
-                    + ((rcl.getRemainingCloudletLength()) / getTotalCurrentAllocatedMipsForCloudlet(rcl, time));
+            //getRemainingCloudletLength()得到的是文件中的任务的运行时间，换算成毫秒的数字,一般是一万到几万，容器的MIPS暂时设为10000
+
+//            return time
+//                    + ((rcl.getRemainingCloudletLength()) / getTotalCurrentAllocatedMipsForCloudlet(rcl, time));
+            double esFinishTime = time + ((rcl.getRemainingCloudletLength()) / getTotalCurrentAllocatedMipsForCloudlet(rcl, time));
+//            if(rcl.getCloudletId() == 41){
+//                esFinishTime += 0;
+//                Log.printLine("41号任务的预计完成时间基于的开始时间是：" + time);
+//                Log.printLine("41号任务的预计完成时间是：" + esFinishTime);
+//            }
+            return esFinishTime;
         }
 
         /**

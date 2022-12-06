@@ -9,11 +9,9 @@ import org.cloudbus.cloudsim.core.CloudSimTags;
 import org.cloudbus.cloudsim.core.SimEntity;
 import org.cloudbus.cloudsim.core.SimEvent;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.text.DecimalFormat;
+import java.util.*;
+
 import org.apache.commons.math3.stat.descriptive.rank.Percentile;
 import org.cloudbus.cloudsim.container.core.Container;
 import org.cloudbus.cloudsim.container.core.containerCloudSimTags;
@@ -22,10 +20,12 @@ import org.cloudbus.cloudsim.container.core.ContainerDatacenterCharacteristics;
 import org.cloudbus.cloudsim.container.core.ContainerHost;
 import org.cloudbus.cloudsim.container.core.ContainerVm;
 import org.cloudbus.cloudsim.container.schedulers.ContainerCloudletScheduler;
+import org.cloudbus.cloudsim.core.predicates.PredicateType;
 import org.wfc.core.WFCConstants;
 import org.workflowsim.FileItem;
 import org.workflowsim.Job;
 import org.workflowsim.Task;
+import org.workflowsim.WorkflowSimTags;
 import org.workflowsim.utils.Parameters;
 import org.workflowsim.utils.Parameters.ClassType;
 import org.workflowsim.utils.WFCReplicaCatalog;
@@ -86,9 +86,20 @@ public class WFCDatacenter extends SimEntity {
      */
     private String logAddress;
 
+    /**
+     * 添加一个属性，用来计算总的cost
+     */
+    public static Double totalCost = 0.0;
+
+    /**
+     * 用来让每轮都调用updateCloduletProcessing()两次
+     */
+    private boolean secondTime;
+
 
     /**
      * Allocates a new PowerDatacenter object.
+     *
      * @param name
      * @param characteristics
      * @param vmAllocationPolicy
@@ -118,7 +129,8 @@ public class WFCDatacenter extends SimEntity {
         setSchedulingInterval(schedulingInterval);
         setExperimentName(experimentName);
         setLogAddress(logAddress);
-        
+        secondTime = false;
+
         for (ContainerHost host : getCharacteristics().getHostList()) {
             host.setDatacenter(this);
         }
@@ -153,11 +165,11 @@ public class WFCDatacenter extends SimEntity {
      */
     @Override
     public void processEvent(SimEvent ev) {
-        
+
         int srcId = -1;
-        if(WFCConstants.CAN_PRINT_SEQ_LOG)
-        Log.printLine("ContainerDataCener=>ProccessEvent()=>ev.getTag():"+ev.getTag());
-        
+        if (WFCConstants.CAN_PRINT_SEQ_LOG)
+            Log.printLine("ContainerDataCener=>ProccessEvent()=>ev.getTag():" + ev.getTag());
+
         switch (ev.getTag()) {
             // Resource characteristics inquiry
             case CloudSimTags.RESOURCE_CHARACTERISTICS:
@@ -241,11 +253,15 @@ public class WFCDatacenter extends SimEntity {
                 break;
 
             case CloudSimTags.VM_CREATE:
-                processVmCreate(ev, false);
+                if (!WFCDeadline.endSimulation) {
+                    processVmCreate(ev, false);
+                }
                 break;
 
             case CloudSimTags.VM_CREATE_ACK:
-                processVmCreate(ev, true);
+                if (!WFCDeadline.endSimulation) {
+                    processVmCreate(ev, true);
+                }
                 break;
 
             case CloudSimTags.VM_DESTROY:
@@ -281,8 +297,11 @@ public class WFCDatacenter extends SimEntity {
                 break;
 
             case CloudSimTags.VM_DATACENTER_EVENT:
-                updateCloudletProcessing();
-                checkCloudletCompletion();
+                //为了应对future队列中堆积过多的VM_DATACENTER_EVENT事项
+                if (!WFCDeadline.endSimulation) {
+                    updateCloudletProcessing();
+                    checkCloudletCompletion();
+                }
                 break;
             case containerCloudSimTags.CONTAINER_SUBMIT:
                 processContainerSubmit(ev, true);
@@ -292,18 +311,74 @@ public class WFCDatacenter extends SimEntity {
                 processContainerMigrate(ev, false);
                 // other unknown tags are processed by this method
                 break;
-
+            //新增一个事件，VM宕机
+            case CloudSimTags.VM_SHUTDOWN:
+                processVmShutdown(ev, true);
+                break;
             default:
                 processOtherEvent(ev);
                 break;
         }
     }
 
-    public void processContainerSubmit(SimEvent ev, boolean ack) {
+    /**
+     * 处理WFCScheduler发来的VM宕机的命令
+     *
+     * @param ev
+     */
+    private void processVmShutdown(SimEvent ev, boolean ack) {
+        int vmId = (int) ev.getData();
+        ContainerVm targetVm = null;
+        for (ContainerVm vm : getContainerVmList()) {
+            if (vm.getId() == vmId) {
+                targetVm = vm;
+                break;
+            }
+        }
+        if (targetVm == null) {
+//            Log.printLine(CloudSim.clock() + ":即将宕机的VM并不存在");
+            return;
+        }
+
+        targetVm.setDestroyTime(CloudSim.clock());
+        totalCost += targetVm.getTotalCost();
+        if (WFCConstants.PRINT_COST_CALCULATE) {
+            Log.printLine(new DecimalFormat("#.00").format(CloudSim.clock()) + ":虚拟机" + targetVm.getId() + "宕机，成本变为：" + totalCost);
+        }
+        getVmAllocationPolicy().deallocateHostForVm(targetVm);
+        if (ack) {
+            int[] data = new int[3];
+            data[0] = getId();
+            data[1] = targetVm.getId();
+            data[2] = CloudSimTags.TRUE;
+            sendNow(targetVm.getUserId(), CloudSimTags.VM_SHUTDOWN_ACK, data);
+        }
+        getContainerVmList().remove(targetVm);
+    }
+
+    protected void processContainerSubmit(SimEvent ev, boolean ack) {
+        // 新加的，在创建新Container之前，先把容器上完成了的任务都发送到WFCEngine
+        checkCloudletCompletion();
+
         List<Container> containerList = (List<Container>) ev.getData();
 
         for (Container container : containerList) {
-            boolean result = getContainerAllocationPolicy().allocateVmForContainer(container, getContainerVmList());
+//            Log.printLine("正在处理创建容器" + container.getId() + "的命令");
+            //分情况处理，如果container已经有指定的VM，就不再调用上面的分配方法，而是直接分配给特定的VM
+            //如果container没有指定VM，则为其寻找和分配VM
+            boolean result = false;
+            if (null != container.getVm()) {
+                //下面这行代码，不设置应该没问题，因为ContainerAllocationPolicy的ContainerVmList也只在为Container寻找VM才用到
+                //但是这个分支里Container已经有了指定的VM
+//                getContainerAllocationPolicy().setContainerVmList(getContainerVmList());
+
+                //如果取出来的VM不是null，就在VM上创建Container，同时在映射表上记录
+//                Log.printLine("这个容器指定了VM");
+                result = getContainerAllocationPolicy().allocateVmForContainer(container, container.getVm());
+            } else {
+//                Log.printLine("这个容器并没有指定VM");
+                result = getContainerAllocationPolicy().allocateVmForContainer(container, getContainerVmList());
+            }
             if (ack) {
                 int[] data = new int[3];
                 data[1] = container.getId();
@@ -315,14 +390,11 @@ public class WFCDatacenter extends SimEntity {
                 if (result) {
                     ContainerVm containerVm = getContainerAllocationPolicy().getContainerVm(container);
                     data[0] = containerVm.getId();
-                    if(containerVm.getId() == -1){
+                    if (containerVm.getId() == -1) {
 
                         Log.printConcatLine("The ContainerVM ID is not known (-1) !");
                     }
-                    
-                    
-                    Log.printConcatLine("Assigning the container#" + container.getUid() + "to VM #" + containerVm.getUid());
-                    
+//                    Log.printConcatLine("Assigning the container#" + container.getUid() + "to VM #" + containerVm.getUid());
                     getContainerList().add(container);
                     if (container.isBeingInstantiated()) {
                         container.setBeingInstantiated(false);
@@ -332,19 +404,18 @@ public class WFCDatacenter extends SimEntity {
                     data[0] = -1;
                     //notAssigned.add(container);
                     Log.printLine(String.format("Couldn't find a vm to host the container #%s", container.getUid()));
-
                 }
-                
-                send(ev.getSource(), CloudSim.getMinTimeBetweenEvents(), containerCloudSimTags.CONTAINER_CREATE_ACK, data);
+
+//                send(ev.getSource(), CloudSim.getMinTimeBetweenEvents(), containerCloudSimTags.CONTAINER_CREATE_ACK, data);
+                //这里把延迟改为了0
+//                Log.printLine("返回了创建容器" + container.getId() + "的确认");
+                send(ev.getSource(), 0, containerCloudSimTags.CONTAINER_CREATE_ACK, data);
 
             }
         }
 
     }
 
-    
-    
- 
     /**
      * Process data del.
      *
@@ -517,10 +588,17 @@ public class WFCDatacenter extends SimEntity {
      * @post $none
      */
     protected void processVmCreate(SimEvent ev, boolean ack) {
+//        Log.printLine("called VmCreate in WFCDatacenter");
+
         ContainerVm containerVm = (ContainerVm) ev.getData();
-
+//        containerVm.setCreatingTime(CloudSim.clock());
+//        if(containerVm.getId() > WFCConstants.WFC_NUMBER_VMS){
+//            Log.printLine("WFCDatacenter收到了动态创建新VM的命令");
+//        }
+        //allocateHostForVmI()用的是PowerContainerVmAllocationAbstract中的
+        //顺利的话这句代码就在host中创建了vm
         boolean result = getVmAllocationPolicy().allocateHostForVm(containerVm);
-
+        ContainerHost host = containerVm.getHost();
         if (ack) {
             int[] data = new int[3];
             data[0] = getId();
@@ -531,7 +609,15 @@ public class WFCDatacenter extends SimEntity {
             } else {
                 data[2] = CloudSimTags.FALSE;
             }
-            send(containerVm.getUserId(), CloudSim.getMinTimeBetweenEvents(), CloudSimTags.VM_CREATE_ACK, data);
+            //创建好之后应该立即通知WFCScheduler，而不是等一会才通知
+            //需要修改这行代码
+//            if(containerVm.getId() > WFCConstants.WFC_NUMBER_VMS){
+//                Log.printLine("WFCDatacenter向WFCScheduler返回了创建VM的反馈");
+//            }
+
+            //这里改成了延迟为0
+//            send(containerVm.getUserId(), CloudSim.getMinTimeBetweenEvents(), CloudSimTags.VM_CREATE_ACK, data);
+            send(containerVm.getUserId(), 0, CloudSimTags.VM_CREATE_ACK, data);
         }
 
         if (result) {
@@ -559,6 +645,11 @@ public class WFCDatacenter extends SimEntity {
      */
     protected void processVmDestroy(SimEvent ev, boolean ack) {
         ContainerVm containerVm = (ContainerVm) ev.getData();
+        containerVm.setDestroyTime(CloudSim.clock());
+        totalCost += containerVm.getTotalCost();
+        if (WFCConstants.PRINT_COST_CALCULATE) {
+            Log.printLine(new DecimalFormat("#.00").format(CloudSim.clock()) + ":虚拟机" + containerVm.getId() + "销毁，成本变为：" + totalCost);
+        }
         getVmAllocationPolicy().deallocateHostForVm(containerVm);
 
         if (ack) {
@@ -571,6 +662,7 @@ public class WFCDatacenter extends SimEntity {
         }
 
         getContainerVmList().remove(containerVm);
+//        Log.printConcatLine(CloudSim.clock(), "VM", containerVm.getId(), "已经正常销毁");
     }
 
     /**
@@ -644,14 +736,15 @@ public class WFCDatacenter extends SimEntity {
         ContainerVm containerVm = (ContainerVm) migrate.get("vm");
 
         getContainerAllocationPolicy().deallocateVmForContainer(container);
-        if(containerVm.getContainersMigratingIn().contains(container)){
-            containerVm.removeMigratingInContainer(container);}
+        if (containerVm.getContainersMigratingIn().contains(container)) {
+            containerVm.removeMigratingInContainer(container);
+        }
         boolean result = getContainerAllocationPolicy().allocateVmForContainer(container, containerVm);
         if (!result) {
             Log.printLine("[Datacenter.processContainerMigrate]Container allocation to the destination vm failed");
             System.exit(0);
         }
-        if (containerVm.isInWaiting()){
+        if (containerVm.isInWaiting()) {
             containerVm.setInWaiting(false);
 
         }
@@ -828,9 +921,10 @@ public class WFCDatacenter extends SimEntity {
      */
     protected void processCloudletSubmit(SimEvent ev, boolean ack) {
         updateCloudletProcessing();
-
-        try {            
+        try {
             Job cl = (Job) ev.getData();
+//            Log.printLine(CloudSim.clock() + ":WFCDatacenter: 现在处理任务" + cl.getCloudletId() + "的提交++++++++++");
+//            Log.printLine("分配给了容器" + cl.getContainerId() + "++++++++++");
 
             // checks whether this Cloudlet has finished or not
             if (cl.isFinished()) {
@@ -860,21 +954,24 @@ public class WFCDatacenter extends SimEntity {
 
                 return;
             }
-
             // process this Cloudlet to this CloudResource
-            cl.setResourceParameter(getId(), getCharacteristics().getCostPerSecond(), getCharacteristics().getCostPerBw());
-
+            //cl.setResourceParameter(getId(), getCharacteristics().getCostPerSecond(), getCharacteristics().getCostPerBw());
+            //获取分配给该任务的资源
             int userId = cl.getUserId();
             int vmId = cl.getVmId();
             int containerId = cl.getContainerId();
 
-         
-
             ContainerHost host = getVmAllocationPolicy().getHost(vmId, userId);
+            //获得该任务所在的VM
             ContainerVm vm = host.getContainerVm(vmId, userId);
+            //有可能此时VM已经宕机了(从已有的同步函数的措施，应该不会此时VM已经正常销毁，但有可能已经宕机)
+//            if (null == vm) {
+//                return;
+//            }
+
             Container container = vm.getContainer(containerId, userId);
-            
-           switch (Parameters.getCostModel()) {
+            //计费方式是按照数据中心，还是按照虚拟机
+            switch (Parameters.getCostModel()) {
                 case DATACENTER:
                     // process this Cloudlet to this CloudResource
                     cl.setResourceParameter(getId(), getCharacteristics().getCostPerSecond(),
@@ -885,35 +982,38 @@ public class WFCDatacenter extends SimEntity {
                     break;
                 default:
                     break;
-                       
             }
-                        
+            //有一个任务是新增的任务，类型为stage in
+            //这个任务是什么时候放进来的？WFCEngineClustering.processDatastaging()中添加的
             if (cl.getClassType() == ClassType.STAGE_IN.value) {
+                //把需要使用的输入文件加入到WFCReplicaCatalog的storage中
                 stageInFile2FileSystem(cl);
             }
-                                    
+
             //double fileTransferTime = predictFileTransferTime(cl.getRequiredFiles());
-            
-            double fileTransferTime = 0.0;
-            if (cl.getClassType() == ClassType.COMPUTE.value) {
-                fileTransferTime = processDataStageInForComputeJob(cl.getFileList(), cl);
-            }
-             //double fileTransferTime = predictFileTransferTime(cl.getRequiredFiles());
-   
+
             //Scheduler schedulerVm = vm.getContainerScheduler();
-                        
-            ContainerCloudletScheduler schedulerContainer=container.getContainerCloudletScheduler();
-            double estimatedFinishTime = schedulerContainer.cloudletSubmit(cl, fileTransferTime);
+            //getContainerCloudletScheduler()获取的是什么？WFCExample中获取的是ContainerCloudletSchedulerDynamicWorkload
+            ContainerCloudletScheduler schedulerContainer = container.getContainerCloudletScheduler();
+            //将任务添加到execList或waitingList中，并计算估计的完成时间
+            //ContainerCloudletSchedulerDynamicWorkload.cloudletSubmit并没有用到fileTransferTime
+
+            double estimatedFinishTime = schedulerContainer.cloudletSubmit(cl, cl.getTransferTime());
+            WFCDeadline.wfcDatacenterAllocateJobNum++;
+
+            //设定job中每个task的开始时间和结束时间
+            //放在这里不合理，因为有可能job还没有开始运行，就无法设定真正的开始时间
             updateTaskExecTime(cl, vm);
-            
+
             // if this cloudlet is in the exec queue
             if (estimatedFinishTime > 0.0 && !Double.isInfinite(estimatedFinishTime)) {
-                estimatedFinishTime += fileTransferTime;
-                send(getId(), estimatedFinishTime, CloudSimTags.VM_DATACENTER_EVENT);
-            }else {
+                //这里修改过，把第二个参数从estimatedFinishTime改成了estimatedFinishTime - CloudSim.clock()
+                //这样修改之后，才能让结果输出的运行时间对应上dax文件里的任务长度
+                send(getId(), estimatedFinishTime - CloudSim.clock(), CloudSimTags.VM_DATACENTER_EVENT);
+            } else {
                 Log.printLine("Warning: You schedule cloudlet to a busy VM");
             }
-            
+
             if (ack) {
                 int[] data = new int[3];
                 data[0] = getId();
@@ -926,14 +1026,15 @@ public class WFCDatacenter extends SimEntity {
             }
         } catch (ClassCastException c) {
             Log.printLine(String.format("%s.processCloudletSubmit(): ClassCastException error.", getName()));
-          //by arman I commented log   c.printStackTrace();
-        } catch (Exception e) {                         
-              e.printStackTrace();           //by arman I commented log 
-              Log.printLine(String.format("%s.processCloudletSubmit(): Exception error.", getName()));
-              Log.print(e.getMessage());
+            //by arman I commented log   c.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();           //by arman I commented log
+            Log.printLine(String.format("%s.processCloudletSubmit(): Exception error.", getName()));
+            Log.print(e.getMessage());
         }
 
         checkCloudletCompletion();
+//        Log.printLine(CloudSim.clock() + ":WFCDatacenter的submit+++++++++++++++++++++++++++++结束");
     }
 
     /**
@@ -1039,6 +1140,8 @@ public class WFCDatacenter extends SimEntity {
      * Updates processing of each cloudlet running in this PowerDatacenter. It is necessary because
      * Hosts and VirtualMachines are simple objects, not entities. So, they don't receive events and
      * updating cloudlets inside them must be called from the outside.
+     * <p>
+     * 导致这个函数运行次数多，有两个来源，一是processCloudletSubmit()调用，二是smallerTime决定的事项时间
      *
      * @pre $none
      * @post $none
@@ -1047,33 +1150,67 @@ public class WFCDatacenter extends SimEntity {
         // if some time passed since last processing
         // R: for term is to allow loop at simulation start. Otherwise, one initial
         // simulation step is skipped and schedulers are not properly initialized
-       //if (CloudSim.clock() < 0.111 || CloudSim.clock() > getLastProcessTime() + CloudSim.getMinTimeBetweenEvents()) {
-                   
-       if (CloudSim.clock() < 0.111 || CloudSim.clock() > getLastProcessTime() + 0.01) {
-            List<? extends ContainerHost> list = getVmAllocationPolicy().getContainerHostList();
-            double smallerTime = Double.MAX_VALUE;
-            // for each host...
-            for (int i = 0; i < list.size(); i++) {
-                ContainerHost host = list.get(i);
-                // inform VMs to update processing
-                double time = host.updateContainerVmsProcessing(CloudSim.clock());
-                // what time do we expect that the next cloudlet will finish?
-                if (time < smallerTime) {
-                    smallerTime = time;
-                }
+        //if (CloudSim.clock() < 0.111 || CloudSim.clock() > getLastProcessTime() + CloudSim.getMinTimeBetweenEvents()) {
+
+        if(CloudSim.clock() - getLastProcessTime() < WFCConstants.MIN_TIME_BETWEEN_EVENTS){
+            SimEvent nextUpdateEvent = getNextEvent(new PredicateType(CloudSimTags.VM_DATACENTER_EVENT));
+            // 把最小间隔之前的相同事件，全部删掉
+            while(null != nextUpdateEvent && nextUpdateEvent.eventTime() - getLastProcessTime() < WFCConstants.MIN_TIME_BETWEEN_EVENTS){
+                nextUpdateEvent = getNextEvent(new PredicateType(CloudSimTags.VM_DATACENTER_EVENT));
             }
-            // gurantees a minimal interval before scheduling the event
+            // 还回去比较晚的，不能删除所有距离近的事件，否则时间表现明显下降
+            if(null != nextUpdateEvent){
+                schedule(nextUpdateEvent.getDestination(), nextUpdateEvent.eventTime() - CloudSim.clock(), nextUpdateEvent.getTag(), nextUpdateEvent.getData());
+            }else{
+                schedule(getId(), getLastProcessTime() + WFCConstants.MIN_TIME_BETWEEN_EVENTS + 0.0001 - CloudSim.clock(), CloudSimTags.VM_DATACENTER_EVENT);
+            }
+//            if(null != nextUpdateEvent){
+//                schedule(nextUpdateEvent.getDestination(), nextUpdateEvent.eventTime() - CloudSim.clock(), nextUpdateEvent.getTag(), nextUpdateEvent.getData());
+//            }
+            return;
+        }
+        setLastProcessTime(CloudSim.clock());
+//        schedule(getId(), WFCConstants.MIN_TIME_BETWEEN_EVENTS + 0.0001, CloudSimTags.VM_DATACENTER_EVENT);
+
+//        // 尝试获取下一次调用processCloudletSubmit()的时间（目前已知的）
+//        SimEvent nextEvent = getNextEvent(new PredicateType(CloudSimTags.CLOUDLET_SUBMIT));
+//        // getNextEvent()会把event移除，
+//        // 而且是processCloudletSubmit()，而不是该函数的，所以取出来还要换回去
+//        if (null != nextEvent) {
+//            schedule(nextEvent.getDestination(), nextEvent.eventTime() - CloudSim.clock(), nextEvent.getTag(), nextEvent.getData());
+//        }
+//        // 如果这一时刻已经运行过一次，而且同一时刻，后面还有相同的事件，就跳过
+//        // 相当于只运行同一时刻的第一次调用和最后一次调用
+//        if (getLastProcessTime() == CloudSim.clock() && null != nextEvent && nextEvent.eventTime() == CloudSim.clock()) {
+//            return;
+//        }
+        if(WFCConstants.PRINT_THREE_FUNCTION){
+            Log.printLine(new DecimalFormat("#.00").format(CloudSim.clock()) + ":WFCDatacenter的updateCloudletProcessing+++++++++++++++++++++++++++++");
+        }
+        List<? extends ContainerHost> list = getVmAllocationPolicy().getContainerHostList();
+        double smallerTime = Double.MAX_VALUE;
+        // for each host...
+        for (int i = 0; i < list.size(); i++) {
+            ContainerHost host = list.get(i);
+            // inform VMs to update processing
+            //获得这个host中下一个事项的发生时间
+            double time = host.updateContainerVmsProcessing(CloudSim.clock());
+            // what time do we expect that the next cloudlet will finish?
+            if (time < smallerTime) {
+                smallerTime = time;
+            }
+        }
+        // gurantees a minimal interval before scheduling the event
            /* if (smallerTime < CloudSim.clock() + CloudSim.getMinTimeBetweenEvents() + 0.01) {
                 smallerTime = CloudSim.clock() + CloudSim.getMinTimeBetweenEvents() + 0.01;
             }*/
-            
-            if (smallerTime < CloudSim.clock() + CloudSim.getMinTimeBetweenEvents() + 0.11) {
-                smallerTime = CloudSim.clock() + CloudSim.getMinTimeBetweenEvents() + 0.11;
-            }
-            if (smallerTime != Double.MAX_VALUE) {
-                schedule(getId(), (smallerTime - CloudSim.clock()), CloudSimTags.VM_DATACENTER_EVENT);                  
-            }
-            setLastProcessTime(CloudSim.clock());
+        // 如果不加0.0001，有可能这个事件被拒绝掉
+        if (smallerTime < getLastProcessTime() + WFCConstants.MIN_TIME_BETWEEN_EVENTS + 0.0001) {
+            smallerTime = getLastProcessTime() + WFCConstants.MIN_TIME_BETWEEN_EVENTS + 0.0001;
+        }
+//            Log.printConcatLine(CloudSim.clock(), ":计算出的下一个事项时间是：", smallerTime);
+        if (smallerTime != Double.MAX_VALUE) {
+            schedule(getId(), (smallerTime - CloudSim.clock()), CloudSimTags.VM_DATACENTER_EVENT);
         }
     }
 
@@ -1090,8 +1227,14 @@ public class WFCDatacenter extends SimEntity {
             ContainerHost host = list.get(i);
             for (ContainerVm vm : host.getVmList()) {
                 for (Container container : vm.getContainerList()) {
+                    //如果这个container中至少存在一个完成的任务还没有被处理（getNextFinishedCloudlet()会从列表中移除处理过的任务）
                     while (container.getContainerCloudletScheduler().isFinishedCloudlets()) {
                         Cloudlet cl = container.getContainerCloudletScheduler().getNextFinishedCloudlet();
+
+                        //新添加，用来真正更新task的开始时间
+                        Job job = (Job) cl;
+                        updateTaskExecTime(job, vm);
+
                         if (cl != null) {
                             sendNow(cl.getUserId(), CloudSimTags.CLOUDLET_RETURN, cl);
                             register(cl);//notice me it is important
@@ -1400,8 +1543,7 @@ public class WFCDatacenter extends SimEntity {
     public void setLogAddress(String logAddress) {
         this.logAddress = logAddress;
     }
-    
-    
+
     /**
      * Update the submission time/exec time of a job
      *
@@ -1424,7 +1566,7 @@ public class WFCDatacenter extends SimEntity {
      * condor-io) add files to the local storage; For a shared file system (such
      * as NFS) add files to the shared storage
      *
-     * @param cl, the job
+     * @param job
      * @pre $none
      * @post $none
      */
@@ -1443,7 +1585,7 @@ public class WFCDatacenter extends SimEntity {
                  * name)
                  */
                 case LOCAL:
-                    
+
                     WFCReplicaCatalog.addFileToStorage(file.getName(), this.getName());
                     /**
                      * Is it not really needed currently but it is left for
@@ -1457,7 +1599,7 @@ public class WFCDatacenter extends SimEntity {
                  */
                 case SHARED:
                     WFCReplicaCatalog.addFileToStorage(file.getName(), this.getName());
-                    
+
                     break;
                 default:
                     break;
@@ -1472,19 +1614,23 @@ public class WFCDatacenter extends SimEntity {
      * @pre  $none
      * @post $none
      */
-    protected double processDataStageInForComputeJob(List<FileItem> requiredFiles, Job job) throws Exception {      
-         //Log.printLine("**WFCDatacenter=>processDataStageInForComputeJob**");
-        
-         double time = 0.0;
-               for (FileItem file : requiredFiles) {
+    protected double processDataStageInForComputeJob(List<FileItem> requiredFiles, Job job) throws Exception {
+        //Log.printLine("**WFCDatacenter=>processDataStageInForComputeJob**");
+
+        double time = 0.0;
+        //requiredFiles包含的是所有输入和输出的文件
+        for (FileItem file : requiredFiles) {
                      /*Log.printLine("          file : ");
                      Log.printLine(file);
                      Log.printLine("          getDepth : ");
                      Log.printLine(job.getDepth());*/
-            //The input file is not an output File 
+            //The input file is not an output File
+            //检查这个文件是不是input标签的，并且没有和另一个output标签的文件重名
             if (file.isRealInputFile(requiredFiles)) {
                 double maxBwth = 0.0;
+                //siteList是什么？
                 List siteList = WFCReplicaCatalog.getStorageList(file.getName());
+//                Log.printConcatLine(CloudSim.clock(), ":processDataStageInForComputeJob(): 查找文件", file.getName());
                   /*Log.printLine("          siteList : ");
                   Log.printLine(siteList);*/
                 if (siteList.isEmpty()) {
@@ -1513,7 +1659,7 @@ public class WFCDatacenter extends SimEntity {
                         ContainerVm vm = host.getContainerVm(vmId, userId);
 
                         boolean requiredFileStagein = true;
-                        for (Iterator it = siteList.iterator(); it.hasNext();) {
+                        for (Iterator it = siteList.iterator(); it.hasNext(); ) {
                             //site is where one replica of this data is located at
                             String site = (String) it.next();
                             if (site.equals(this.getName())) {
@@ -1542,6 +1688,8 @@ public class WFCDatacenter extends SimEntity {
                             }
                         }
                         if (requiredFileStagein && maxBwth > 0.0) {
+                            //file.getSize()的值为大约4222080，单位应该是B
+                            //按照下面的算法，如果size单位是字节，maxBwth的单位应该是MB
                             time += file.getSize() / (double) Consts.MILLION / maxBwth;
                         }
 
@@ -1559,13 +1707,47 @@ public class WFCDatacenter extends SimEntity {
         }
         return time;
     }
-    
-    
-    
+
+    //新写一个函数，计算输出任务需要的传输时间
+    protected double processDataStageOutForComputeJob(List<FileItem> requiredFiles, Job job) throws Exception {
+        //Log.printLine("**WFCDatacenter=>processDataStageInForComputeJob**");
+
+        double time = 0.0;
+        //requiredFiles包含的是所有输入和输出的文件
+        for (FileItem file : requiredFiles) {
+                     /*Log.printLine("          file : ");
+                     Log.printLine(file);
+                     Log.printLine("          getDepth : ");
+                     Log.printLine(job.getDepth());*/
+            if (file.getType() == Parameters.FileType.OUTPUT) {
+                double maxBwth = 0.0;
+
+                switch (WFCReplicaCatalog.getFileSystem()) {
+                    case SHARED:
+                        /**
+                         * Picks up the site that is closest
+                         */
+                        double maxRate = Double.MIN_VALUE;
+                        for (Storage storage : getStorageList()) {
+                            double rate = storage.getMaxTransferRate();
+                            if (rate > maxRate) {
+                                maxRate = rate;
+                            }
+                        }
+                        //Storage storage = getStorageList().get(0);
+                        time += file.getSize() / (double) Consts.MILLION / maxRate;
+                        break;
+                }
+            }
+        }
+        return time;
+    }
+
+
     private void register(Cloudlet cl) {
-        
+
         //Log.printLine("**WFCDatacenter=>register**");
-        
+
         Task tl = (Task) cl;
         List<FileItem> fList = tl.getFileList();
         for (FileItem file : fList) {
@@ -1577,6 +1759,7 @@ public class WFCDatacenter extends SimEntity {
             {
                 switch (WFCReplicaCatalog.getFileSystem()) {
                     case SHARED:
+//                        Log.printConcatLine(CloudSim.clock(), ":因为新任务", cl.getCloudletId(), "完成，存储了新文件", file.getName());
                         WFCReplicaCatalog.addFileToStorage(file.getName(), this.getName());
                         break;
                     case LOCAL:

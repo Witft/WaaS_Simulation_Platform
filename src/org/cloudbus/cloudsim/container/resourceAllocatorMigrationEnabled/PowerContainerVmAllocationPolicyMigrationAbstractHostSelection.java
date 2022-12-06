@@ -1,5 +1,6 @@
 package org.cloudbus.cloudsim.container.resourceAllocatorMigrationEnabled;
 
+import org.cloudbus.cloudsim.Log;
 import org.wfc.core.WFCDatacenter;
 import org.cloudbus.cloudsim.container.core.*;
 import org.cloudbus.cloudsim.container.hostSelectionPolicies.HostSelectionPolicy;
@@ -38,16 +39,21 @@ public class PowerContainerVmAllocationPolicyMigrationAbstractHostSelection exte
      * @param excludedHosts the excluded hosts
      * @return the power host
      */
+    //WFCExample中的虚拟机分配到host时，调用了这个方法
     public PowerContainerHost findHostForVm(ContainerVm vm, Set<? extends ContainerHost> excludedHosts) {
+//        Log.printLine("ooooooooooooooooooooooooooooooooooooooooooooooooooooo");
+//        Log.printLine("ooooooooooooooooooooooooooooooooooooooooooooooooooooo");
         PowerContainerHost allocatedHost = null;
         Boolean find = false;
         Set<ContainerHost> excludedHost1 = new HashSet<>();
         excludedHost1.addAll(excludedHosts);
         while (!find) {
+            //如果getHostSelectionPolicy()获得的是FirstFit的，那么getHost()做的就只是返回第一个不在excludedHost1里的Host
             ContainerHost host = getHostSelectionPolicy().getHost(getContainerHostList(), vm, excludedHost1);
             if (host == null) {
                 return allocatedHost;
             }
+            //检查host的每个核的性能、剩余的性能等是否满足vm的需要
             if (host.isSuitableForContainerVm(vm)) {
                 find = true;
                 allocatedHost = (PowerContainerHost) host;

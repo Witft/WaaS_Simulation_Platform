@@ -35,8 +35,10 @@ public class Parameters {
 
     public enum SchedulingAlgorithm {
 
-        MAXMIN, MINMIN, MCT, DATA, 
-        STATIC, FCFS, ROUNDROBIN, INVALID
+        MAXMIN, MINMIN, MCT, DATA, STATIC,
+        FCFS, ROUNDROBIN, INVALID, JUSTTRY, VMJUSTTRY,
+        GREEDY, TRYMAJOR, ORISCDY,
+        SCDY, SLOW, FUTURESCDY
     }
     
     /**
@@ -111,7 +113,12 @@ public class Parameters {
      * The physical path to DAX file
      */
     private static String daxPath;
-    
+
+    /**
+     * 自己添加一个属性，存储工作流路径的列表
+     */
+    private static List<String> daxPathList;
+
     /**
      * The physical path to DAX files
      */
@@ -228,6 +235,31 @@ public class Parameters {
             OverheadParameters op, ClusteringParameters cp,
             SchedulingAlgorithm scheduler, PlanningAlgorithm planner, String rMethod,
             long dl) {
+
+        cParams = cp;
+        vmNum = vm;
+        daxPaths = dax;
+        runtimePath = runtime;
+        datasizePath = datasize;
+
+        oParams = op;
+        schedulingAlgorithm = scheduler;
+        planningAlgorithm = planner;
+        reduceMethod = rMethod;
+        deadline = dl;
+        maxDepth = 0;
+    }
+
+    /**
+     * 添加一个构造函数，可以指定cost model，因为需要设置为以VM方式
+     */
+    public static void init(
+            CostModel costModelIn, int vm, List<String> dax, String runtime, String datasize,
+            OverheadParameters op, ClusteringParameters cp,
+            SchedulingAlgorithm scheduler, PlanningAlgorithm planner, String rMethod,
+            long dl) {
+
+        setCostModel(costModelIn);
 
         cParams = cp;
         vmNum = vm;

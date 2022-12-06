@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
+import static jdk.nashorn.internal.runtime.regexp.joni.Config.log;
+
 /**
  * Created by sareh on 14/07/15.
  */
@@ -55,6 +57,7 @@ public class ContainerHostDynamicWorkload extends ContainerHost{
          */
         @Override
         public double updateContainerVmsProcessing(double currentTime) {
+//            Log.printLine("xxxxxxxxxxxxxxxxxx调用了updateContainerVmsProcessing");
             double smallerTime = super.updateContainerVmsProcessing(currentTime);
             setPreviousUtilizationMips(getUtilizationMips());
             setUtilizationMips(0);

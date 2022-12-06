@@ -272,6 +272,20 @@ public class CloudSimTags {
 
 	public static final int NextCycle = BASE + 48;
 
+	/**
+	 * 新增一个标签，用来定期检查VM是否空闲，如果空闲则销毁
+	 */
+	public static final int CHECK_IDLE_VM = BASE + 49;
+
+	/**
+	 * 新增一个标签，用来表示VM宕机
+	 */
+	public static final int VM_SHUTDOWN = BASE + 50;
+
+	/**
+	 * 新增一个标签，用来表示VM宕机的确认
+	 */
+	public static final int VM_SHUTDOWN_ACK = BASE + 51;
 	/** Private Constructor. */
 	private CloudSimTags() {
 		throw new UnsupportedOperationException("CloudSimTags cannot be instantiated");

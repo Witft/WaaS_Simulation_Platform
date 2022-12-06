@@ -73,7 +73,10 @@ public class ContainerVmRamProvisionerSimple extends ContainerVmRamProvisioner {
     @Override
     public boolean isSuitableForContainerVm(ContainerVm containerVm, float ram) {
         float allocatedRam = getAllocatedRamForContainerVm(containerVm);
+        //检查containerVM自身的ram是否小于ram，如果小于，最多只能给其自身的ram大小
+        //其它是普通的分配过程，检查可用的ram，够用就分配
         boolean result = allocateRamForContainerVm(containerVm, ram);
+        //可能是因为只是尝试一下分配VM，实际上创建过程还没有开始，所以还要撤销containerVM
         deallocateRamForContainerVm(containerVm);
         if (allocatedRam > 0) {
             allocateRamForContainerVm(containerVm, allocatedRam);

@@ -1,11 +1,14 @@
 package org.cloudbus.cloudsim.container.core;
 
+import org.cloudbus.cloudsim.Cloudlet;
 import org.cloudbus.cloudsim.container.containerProvisioners.ContainerBwProvisioner;
 import org.cloudbus.cloudsim.container.containerProvisioners.ContainerPe;
 import org.cloudbus.cloudsim.container.containerProvisioners.ContainerRamProvisioner;
 import org.cloudbus.cloudsim.container.schedulers.ContainerScheduler;
 import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.util.MathUtil;
+import org.wfc.core.WFCConstants;
+import org.workflowsim.ContainerVmType;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -62,6 +65,37 @@ public class PowerContainerVm extends ContainerVm {
             List<? extends ContainerPe> peList,
             final double schedulingInterval) {
         super(id, userId, mips, ram, bw, size, vmm, containerScheduler, containerRamProvisioner, containerBwProvisioner, peList);
+        setSchedulingInterval(schedulingInterval);
+    }
+
+    /**
+     * 重载构造函数，加上VM类型
+     *
+     * @param id                 the id
+     * @param userId             the user id
+     * @param mips               the mips
+     * @param ram                the ram
+     * @param bw                 the bw
+     * @param size               the size
+     * @param vmm                the vmm
+     * @param containerScheduler the cloudlet scheduler
+     * @param schedulingInterval the scheduling interval
+     */
+    public PowerContainerVm(
+            final ContainerVmType containerVmType,
+            final int id,
+            final int userId,
+            final double mips,
+            final float ram,
+            final long bw,
+            final long size,
+            final String vmm,
+            final ContainerScheduler containerScheduler,
+            final ContainerRamProvisioner containerRamProvisioner,
+            final ContainerBwProvisioner containerBwProvisioner,
+            List<? extends ContainerPe> peList,
+            final double schedulingInterval) {
+        super(containerVmType, id, userId, mips, ram, bw, size, vmm, containerScheduler, containerRamProvisioner, containerBwProvisioner, peList);
         setSchedulingInterval(schedulingInterval);
     }
 

@@ -8,9 +8,7 @@
 package org.cloudbus.cloudsim;
 
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
 import org.cloudbus.cloudsim.core.CloudSim;
 
@@ -36,6 +34,11 @@ public class Cloudlet {
 	 *
      */
     private int userId;
+
+    /**
+     * 自己添加的，用来标识该任务属于哪一个工作流
+     */
+    private int workflowId;
 
     /**
      * The execution length of this Cloudlet (Unit: in Million Instructions
@@ -245,6 +248,102 @@ public class Cloudlet {
     private List<String> requiredFiles = null;
 
     /**
+     * 加一个属性，用来存储一个任务的副本
+     */
+    private Set<? extends Cloudlet> replications;
+
+    /**
+     * 加属性，表示截止时间
+     */
+    private double deadline;
+
+    /**
+     * 加属性，传输数据的时间
+     */
+    private double transferTime;
+
+    private boolean isCritical;
+
+    public void setCritical(boolean critical) {
+        isCritical = critical;
+    }
+
+    public boolean isCritical() {
+        return isCritical;
+    }
+
+    public void setTransferTime(double transferTime) {
+        this.transferTime = transferTime;
+    }
+
+    public double getTransferTime() {
+        return transferTime;
+    }
+
+    public void setDeadline(double deadline) {
+        this.deadline = deadline;
+    }
+
+    public double getDeadline() {
+        return deadline;
+    }
+
+    /**
+     * 自己写一个构造函数，加上workflowId，而它属性赋值直接用下面的构造函数
+     */
+    public Cloudlet(
+            int workflowId,
+            final int cloudletId,
+            final long cloudletLength,
+            final int pesNumber,
+            final long cloudletFileSize,
+            final long cloudletOutputSize,
+            final UtilizationModel utilizationModelCpu,
+            final UtilizationModel utilizationModelRam,
+            final UtilizationModel utilizationModelBw) {
+        this(
+                cloudletId,
+                cloudletLength,
+                pesNumber,
+                cloudletFileSize,
+                cloudletOutputSize,
+                utilizationModelCpu,
+                utilizationModelRam,
+                utilizationModelBw);
+        this.workflowId = workflowId;
+    }
+
+    /**
+     * 自己写一个构造函数，加上 workflowId 和 deadline，而它属性赋值直接用已有的构造函数
+     */
+    public Cloudlet(
+            final double deadline,
+            final int workflowId,
+            final int cloudletId,
+            final long cloudletLength,
+            final int pesNumber,
+            final long cloudletFileSize,
+            final long cloudletOutputSize,
+            final UtilizationModel utilizationModelCpu,
+            final UtilizationModel utilizationModelRam,
+            final UtilizationModel utilizationModelBw) {
+        this(
+                workflowId,
+                cloudletId,
+                cloudletLength,
+                pesNumber,
+                cloudletFileSize,
+                cloudletOutputSize,
+                utilizationModelCpu,
+                utilizationModelRam,
+                utilizationModelBw);
+        this.deadline = deadline;
+    }
+
+
+
+
+    /**
      * Allocates a new Cloudlet object. The Cloudlet length, input and output
      * file sizes should be greater than or equal to 1. By default this
      * constructor sets the history of this object.
@@ -289,7 +388,8 @@ public class Cloudlet {
         vmId = -1;        
         accumulatedBwCost = 0;
         costPerBw = 0;
-        requiredFiles = new LinkedList<String>();
+        requiredFiles = new LinkedList<>();
+
     }
 
     /**
@@ -458,9 +558,16 @@ public class Cloudlet {
         setUtilizationModelCpu(utilizationModelCpu);
         setUtilizationModelRam(utilizationModelRam);
         setUtilizationModelBw(utilizationModelBw);
+
+        /**
+         * 自己添加属性的初始化
+         */
+        setReplications(new HashSet<>());
+        transferTime = 0.0;
+        setCritical(false);
     }
 
-	// ////////////////////// INTERNAL CLASS ///////////////////////////////////
+    // ////////////////////// INTERNAL CLASS ///////////////////////////////////
     /**
      * Internal class that keeps track of Cloudlet's movement in different
      * CloudResources. Each time a cloudlet is run on a given VM, the cloudlet's
@@ -507,6 +614,20 @@ public class Cloudlet {
     }
 
 	// ////////////////////// End of Internal Class //////////////////////////
+
+    /**
+     * 关于workflowId的方法
+     */
+    public int getWorkflowId() {
+        return workflowId;
+    }
+
+    public void setWorkflowId(int workflowId){
+        this.workflowId = workflowId;
+    }
+
+
+
     /**
      * Sets the id of the reservation made for this cloudlet.
      *
@@ -1633,6 +1754,20 @@ public class Cloudlet {
      */
     public double getUtilizationOfBw(final double time) {
         return getUtilizationModelBw().getUtilization(time);
+    }
+
+    /**
+     * 加方法，用来设定任务的副本
+     */
+    public <T extends Cloudlet> Set<T> getReplications() {
+        return (Set<T>) replications;
+    }
+
+    /**
+     * 设定任务的副本
+     */
+    public <T extends Cloudlet> void setReplications(Set<T> replications){
+        this.replications = replications;
     }
 
 }

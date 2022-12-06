@@ -26,25 +26,16 @@ import org.cloudbus.cloudsim.container.schedulers.*;
 import org.cloudbus.cloudsim.container.utils.IDs;
 import org.cloudbus.cloudsim.container.vmSelectionPolicies.*;
 import org.cloudbus.cloudsim.Cloudlet;
-import org.cloudbus.cloudsim.CloudletSchedulerSpaceShared;
-import org.cloudbus.cloudsim.DatacenterCharacteristics;
 import org.cloudbus.cloudsim.HarddriveStorage;
-import org.cloudbus.cloudsim.Host;
 import org.cloudbus.cloudsim.Log;
-import org.cloudbus.cloudsim.Pe;
 import org.cloudbus.cloudsim.Storage;
-import org.cloudbus.cloudsim.*;
-import org.cloudbus.cloudsim.container.core.*;
 import org.cloudbus.cloudsim.container.resourceAllocators.*;
 import org.cloudbus.cloudsim.container.containerProvisioners.*;
 import org.cloudbus.cloudsim.container.containerVmProvisioners.*;
 import org.cloudbus.cloudsim.core.CloudSim;
-import org.cloudbus.cloudsim.provisioners.*;
-import org.workflowsim.CondorVM;
 import org.workflowsim.Task;
-import org.workflowsim.WorkflowDatacenter;
 import org.workflowsim.Job;
-import org.workflowsim.WFCEngine;
+import org.wfc.core.WFCEngine;
 import org.workflowsim.WFCPlanner;
 import org.workflowsim.utils.*;
 import org.cloudbus.cloudsim.util.Conversion;
@@ -91,10 +82,10 @@ public class WFCExample {
     private static String experimentName="WFCExampleStatic";
     private static  int num_user = 1;
     private static boolean trace_flag = false;  // mean trace events
-    private static boolean failure_flag = false;   
+    private static boolean failure_flag = false;   //可能是指不考虑容错
     private static List<Container> containerList;       
     private static List<ContainerHost> hostList;    
-    public static List<? extends ContainerVm> vmList;    
+    public static List<? extends ContainerVm> vmList;
     
     public static void main(String[] args) {
         try {                                                
@@ -103,7 +94,7 @@ public class WFCExample {
             WFCConstants.CAN_PRINT_SEQ_LOG_Just_Step = false;
             WFCConstants.ENABLE_OUTPUT = false;
             WFCConstants.FAILURE_FLAG = false;            
-            WFCConstants.RUN_AS_STATIC_RESOURCE = true;     
+            WFCConstants.RUN_AS_STATIC_RESOURCE = true;
             
             FailureParameters.FTCMonitor ftc_monitor = null;
             FailureParameters.FTCFailure ftc_failure = null;
@@ -113,13 +104,13 @@ public class WFCExample {
             Log.printLine("Starting " + experimentName + " ... ");
                         
             String daxPath = "./config/dax/Montage_" + (WFCConstants.WFC_NUMBER_CLOUDLETS - 1) + ".xml";
-            
+            //daxFile只是用来看对应的文件是否存在的，除此之外没有用过
             File daxFile = new File(daxPath);
             if (!daxFile.exists()) {
                 Log.printLine("Warning: Please replace daxPath with the physical path in your working environment!");
                 return;
             }
-     
+            //如果考虑容错？
             if(failure_flag){
                 /*
                 *  Fault Tolerant Parameters
@@ -150,66 +141,68 @@ public class WFCExample {
                failureGenerators[0][0] = new DistributionGenerator(DistributionGenerator.DistributionFamily.WEIBULL,
                        100, 1.0, 30, 300, 0.78);
             }
-            
+            //SchedulingAlgorithm是一个枚举类型的变量
+            //使用minmin算法
             Parameters.SchedulingAlgorithm sch_method = Parameters.SchedulingAlgorithm.MINMIN;//local
             Parameters.PlanningAlgorithm pln_method = Parameters.PlanningAlgorithm.INVALID;//global-stage
+            //表示数据都是本地的？
             WFCReplicaCatalog.FileSystem file_system = WFCReplicaCatalog.FileSystem.LOCAL;
 
             OverheadParameters op = new OverheadParameters(0, null, null, null, null, 0);
-   
+
             ClusteringParameters.ClusteringMethod method = ClusteringParameters.ClusteringMethod.NONE;
             ClusteringParameters cp = new ClusteringParameters(0, 0, method, null);
 
             if(failure_flag){
                 FailureParameters.init(ftc_method, ftc_monitor, ftc_failure, failureGenerators);
             }
-          
-           Parameters.init(WFCConstants.WFC_NUMBER_VMS, daxPath, null,
+            //因为又dax文件包含了运行时间、数据大小的数据，所以有的参数不需要写
+            Parameters.init(WFCConstants.WFC_NUMBER_VMS, daxPath, null,
                     null, op, cp, sch_method, pln_method,
                     null, 0);
             WFCReplicaCatalog.init(file_system);
-
             
             if (failure_flag) {
               FailureMonitor.init();
               FailureGenerator.init();
             }
-            
+            //为什么这又出现了一个？
+            //为什么没有创建这个对象，直接使用类名？因为初始化的对象是静态的
             WFCReplicaCatalog.init(file_system);
             
-            Calendar calendar = Calendar.getInstance();            
+            Calendar calendar = Calendar.getInstance();
 
             CloudSim.init(num_user, calendar, trace_flag);
-
 
             PowerContainerAllocationPolicy containerAllocationPolicy = new PowerContainerAllocationPolicySimple();
             PowerContainerVmSelectionPolicy vmSelectionPolicy = new PowerContainerVmSelectionPolicyMaximumUsage();
             HostSelectionPolicy hostSelectionPolicy = new HostSelectionPolicyFirstFit();
 
             String logAddress = "~/Results";
-                       
+
             hostList = new ArrayList<ContainerHost>();
             hostList = createHostList(WFCConstants.WFC_NUMBER_HOSTS);
             //cloudletList = new ArrayList<ContainerCloudlet>();
-            containerList= new ArrayList<Container>();        
+            containerList= new ArrayList<Container>();
             //vmList = new ArrayList<ContainerVm>();
-            
+            //负责虚拟机分配给host的策略？
             ContainerVmAllocationPolicy vmAllocationPolicy = new
                     PowerContainerVmAllocationPolicyMigrationAbstractHostSelection(hostList, vmSelectionPolicy,
                     hostSelectionPolicy, WFCConstants.WFC_CONTAINER_OVER_UTILIZATION_THRESHOLD, WFCConstants.WFC_CONTAINER_UNDER_UTILIZATION_THRESHOLD);        
-            
+            //这里面有个WFC_DC_SCHEDULING_INTERVAL，表示调度的间隔？
             WFCDatacenter datacenter = (WFCDatacenter) createDatacenter("datacenter_0",
                         PowerContainerDatacenterCM.class, hostList, vmAllocationPolicy,containerList,containerAllocationPolicy,
                         getExperimentName(experimentName, String.valueOf(WFCConstants.OVERBOOKING_FACTOR)),
                         WFCConstants.WFC_DC_SCHEDULING_INTERVAL, logAddress,
                         WFCConstants.WFC_VM_STARTTUP_DELAY,
                         WFCConstants.WFC_CONTAINER_STARTTUP_DELAY);
-       
+
             WFCPlanner wfPlanner = new WFCPlanner("planner_0", 1);
                       
             WFCEngine wfEngine = wfPlanner.getWorkflowEngine();
-            //vmList = createVmList(wfEngine.getSchedulerId(0), Parameters.getVmNum());                        
-            //wfEngine.submitVmList(wfEngine.getVmList(), 0);                           
+            //vmList = createVmList(wfEngine.getSchedulerId(0), Parameters.getVmNum());
+            //wfEngine.submitVmList(wfEngine.getVmList(), 0);
+            //为什么schedulerId是0？
             wfEngine.bindSchedulerDatacenter(datacenter.getId(), 0);
             
 
@@ -376,10 +369,10 @@ public class WFCExample {
             System.exit(0);
         }
         return list;
-       }
+    }
     
     
-      public static List<ContainerVm> createVmList(int brokerId, int containerVmsNumber) {
+    public static List<ContainerVm> createVmList(int brokerId, int containerVmsNumber) {
         //Creates a container to store VMs. This list is passed to the broker later
         LinkedList<ContainerVm> list = new LinkedList<>();
         ArrayList peList = new ArrayList();

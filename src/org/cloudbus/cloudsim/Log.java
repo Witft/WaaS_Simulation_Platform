@@ -10,6 +10,7 @@ package org.cloudbus.cloudsim;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Logger used for performing logging of the simulation process. It provides the ability to

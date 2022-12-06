@@ -20,6 +20,7 @@ import org.apache.commons.math3.distribution.LogNormalDistribution;
 import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.distribution.RealDistribution;
 import org.cloudbus.cloudsim.Cloudlet;
+import org.cloudbus.cloudsim.Log;
 import org.workflowsim.Job;
 import org.workflowsim.Task;
 import org.apache.commons.math3.distribution.WeibullDistribution;
@@ -175,6 +176,17 @@ public class FailureGenerator {
 
             if (jobFailed) {
                 job.setCloudletStatus(Cloudlet.FAILED);
+//                Log.printLine("失败");
+//                Log.printLine("+++++++++++++++++++++++++++");
+//                Log.printLine("+++++++++++++++++++++++++++");
+//                Log.printLine("+++++++++++++++++++++++++++");
+//                Log.printLine("+++++++++++++++++++++++++++");
+//                Log.printLine("+++++++++++++++++++++++++++");
+//                Log.printLine("+++++++++++++++++++++++++++");
+//                Log.printLine("+++++++++++++++++++++++++++");
+//                Log.printLine("+++++++++++++++++++++++++++");
+//                Log.printLine("+++++++++++++++++++++++++++");
+//                Log.printLine("+++++++++++++++++++++++++++");
             } else {
                 job.setCloudletStatus(Cloudlet.SUCCESS);
             }

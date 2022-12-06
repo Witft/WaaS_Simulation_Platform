@@ -11,6 +11,17 @@ import java.util.List;
 public class ContainerCloudlet extends Cloudlet {
     public int containerId = -1;
 
+    /**
+     * 添加一个成员，upwardRand
+     */
+    protected int upwardRank;
+
+    //添加一个构造函数，加上workflowId
+    public ContainerCloudlet(int workflowId, int cloudletId, long cloudletLength, int pesNumber, long cloudletFileSize, long cloudletOutputSize, UtilizationModel utilizationModelCpu, UtilizationModel utilizationModelRam, UtilizationModel utilizationModelBw) {
+
+        super(workflowId, cloudletId, cloudletLength, pesNumber, cloudletFileSize, cloudletOutputSize, utilizationModelCpu, utilizationModelRam, utilizationModelBw);
+
+    }
 
     public ContainerCloudlet(int cloudletId, long cloudletLength, int pesNumber, long cloudletFileSize, long cloudletOutputSize, UtilizationModel utilizationModelCpu, UtilizationModel utilizationModelRam, UtilizationModel utilizationModelBw) {
 
@@ -37,6 +48,14 @@ public class ContainerCloudlet extends Cloudlet {
 
     public void setContainerId(int containerId) {
         this.containerId = containerId;       
+    }
+
+    public int getUpwardRank() {
+        return upwardRank;
+    }
+
+    public void setUpwardRank(int upwardRank) {
+        this.upwardRank = upwardRank;
     }
     
 }

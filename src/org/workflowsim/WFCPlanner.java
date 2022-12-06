@@ -22,6 +22,7 @@ import org.cloudbus.cloudsim.core.CloudSimTags;
 import org.cloudbus.cloudsim.core.SimEntity;
 import org.cloudbus.cloudsim.core.SimEvent;
 import org.wfc.core.WFCConstants;
+import org.wfc.core.WFCEngine;
 import org.workflowsim.planning.BasePlanningAlgorithm;
 import org.workflowsim.planning.DHEFTPlanningAlgorithm;
 import org.workflowsim.planning.HEFTPlanningAlgorithm;
@@ -137,6 +138,7 @@ public final class WFCPlanner extends SimEntity {
         switch (ev.getTag()) {
             case WorkflowSimTags.START_SIMULATION:
                 getWorkflowParser().parse();
+                //进行下面这步的时候，还没有加上一个传输数据的stage in任务
                 setTaskList(getWorkflowParser().getTaskList());
                 processPlanning();
                 processImpactFactors(getTaskList());
@@ -159,8 +161,10 @@ public final class WFCPlanner extends SimEntity {
         BasePlanningAlgorithm planner = getPlanningAlgorithm(Parameters.getPlanningAlgorithm());
         
         planner.setTaskList(getTaskList());
+        //这里获取的是第一批VM
         planner.setVmList(getWorkflowEngine().getAllVmList());
         try {
+            //分配任务到VM
             planner.run();
         } catch (Exception e) {
             Log.printLine("Error in configuring scheduler_method");
