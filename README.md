@@ -3,8 +3,6 @@ This project is directly based on Cloudsim-Workflow-Function-Container, by **Arm
 
 Modeling And Simulation Of Running Workflow In the **Workflow as a Service platforms**.
 
-Later I will write about what **functions I have added to original project**.
-
 ## Getting Started
 
 You can just open this project with IDEA.
